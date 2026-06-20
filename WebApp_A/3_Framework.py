@@ -94,7 +94,7 @@ if "step" not in st.session_state:
 
 # Image Framework - a simple version
 try:
-    st.image("img\Framework_simple.jpg", width='stretch')
+    st.image("img/Framework_simple.jpg", width='stretch')
 except Exception as e:
     st.error(f"Fehler beim Laden des Bildes: {e}")
 
