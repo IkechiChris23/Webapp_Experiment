@@ -2,6 +2,14 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 import datetime
+import os
+
+# Automatically change the working directory to the location of 0_webapp.py.
+# This ensures that sub-pages and image assets resolve correctly when deployed 
+# inside a subfolder on hosting platforms like Streamlit Community Cloud.
+dir_path = os.path.dirname(os.path.realpath(__file__))
+if dir_path:
+    os.chdir(dir_path)
 
 # ======== MAIN APP ENTRY POINT CONFIG ========
 st.set_page_config(
