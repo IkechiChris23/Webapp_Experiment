@@ -217,6 +217,115 @@ if "fm_i_input_box" not in st.session_state:
 if "fm_confirm_submit" not in st.session_state:
     st.session_state.fm_confirm_submit = False
 
+# ======== MID-EXPERIMENT DATA EXPORT (ROUND 1) ========
+if st.session_state.get("round_1_completed_export", False):
+    import pandas as pd
+    
+    st.subheader("Zwischenexport: Ergebnisse der Runde 1")
+    st.success("🎉 Sie haben Runde 1 erfolgreich abgeschlossen!")
+    st.info("Bitte laden Sie Ihre Ergebnisse für Runde 1 herunter, um fortzufahren.")
+    
+    exp_data = st.session_state.get("experiment_data", {})
+    p_type = "Einzelteilnahme"
+    p_id = exp_data.get("participant_id", "Keine ID")
+    names_str = exp_data.get("name", "")
+    ages_str = str(exp_data.get("age", ""))
+    occ_str = exp_data.get("occupation", "")
+    first_case = exp_data.get("first_case", "")
+    
+    rows = []
+    
+    def process_entries(entries_list, condition_val, case_val):
+        for entry in entries_list:
+            if isinstance(entry, dict):
+                text = entry.get("entry_text", "")
+                stype = entry.get("space_type", "")
+                tstamp = entry.get("timestamp", "")
+                etag = entry.get("entry_tag", "")
+                iid = entry.get("idea_id", None)
+            else:
+                text = str(entry)
+                stype = "unknown"
+                tstamp = ""
+                etag = ""
+                iid = None
+            
+            rows.append({
+                " ID": p_id,
+                "name": names_str,
+                "age": ages_str,
+                "Occupation": occ_str,
+                "Participation_mode": p_type,
+                "condition": condition_val,
+                "case_number": case_val,
+                "method": etag,
+                "timestamp": tstamp,
+                "space_type": stype,
+                "entry_text": text,
+                "Idea_id": iid if iid is not None else ""
+            })
+            
+    # Process Round 1 (Mit Framework) data
+    mit_p = exp_data.get("fw_problem_entries", [])
+    mit_k = exp_data.get("fw_knowledge_entries", [])
+    mit_i = exp_data.get("fw_ideation_entries", [])
+    process_entries(mit_p, "Mit Framework", first_case)
+    process_entries(mit_k, "Mit Framework", first_case)
+    process_entries(mit_i, "Mit Framework", first_case)
+    
+    if rows:
+        df = pd.DataFrame(rows)
+        if "timestamp" in df.columns:
+            df = df.sort_values(by="timestamp", na_position="last").reset_index(drop=True)
+            
+        column_order = [" ID", "name", "age", "Occupation", "Participation_mode", "condition", "case_number", "method", "timestamp", "space_type", "entry_text", "Idea_id"]
+        for col in column_order:
+            if col not in df.columns:
+                df[col] = ""
+        df = df[column_order]
+        
+        csv_data = df.to_csv(index=False, sep=";").encode('utf-8')
+        filename = f"experiment_data_round1_{p_id}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.download_button(
+            label="📥 Ergebnisse der Runde 1 als CSV herunterladen",
+            data=csv_data,
+            file_name=filename,
+            mime="text/csv",
+            type="primary",
+            use_container_width=True
+        )
+    else:
+        st.warning("Keine Daten aus Runde 1 vorhanden.")
+        
+    st.markdown("<br><hr>", unsafe_allow_html=True)
+    if st.button("Weiter zu Runde 2", use_container_width=True):
+        st.session_state.completed_rounds = 1
+        st.session_state.step = 6
+        st.session_state.round_1_completed_export = False
+        
+        # Reset MIT state variables
+        st.session_state.fm_selected_method = None
+        st.session_state.fm_confirm_submit = False
+        st.session_state.fm_method_understood = False
+        st.session_state.fm_framework_understood = False
+        st.session_state.fm_problem_entries = []
+        st.session_state.fm_knowledge_entries = []
+        st.session_state.fm_ideation_entries = []
+        
+        # Reset OHNE state variables in case OHNE is the second round
+        st.session_state.show_ideation = False
+        st.session_state.confirm_submit = False
+        st.session_state.ohne_problem_entries = []
+        st.session_state.ohne_knowledge_entries = []
+        st.session_state.ohne_ideation_entries = []
+        
+        st.rerun()
+        
+    st.stop()
+
+
 # ======== 1. AUTO METHOD SELECTION & EXPLANATION ========
 st.session_state.fm_selected_method = "Brainstorming"
 explanation_text = """**Brainstorming** ist eine Kreativitätstechnnik zur schnellen Ideengenerierung. Für dieses Experiment gilt:
@@ -414,25 +523,24 @@ if st.session_state.fm_framework_understood:
                 st.session_state.experiment_data["fw_knowledge_entries"] = list(st.session_state.fm_knowledge_entries)
                 st.session_state.experiment_data["fw_ideation_entries"] = list(st.session_state.fm_ideation_entries)
                 
-                # Increment rounds counter
-                st.session_state.completed_rounds = st.session_state.get("completed_rounds", 0) + 1
-                
-                # Route step dynamically
-                if st.session_state.completed_rounds >= 2:
+                current_rounds = st.session_state.get("completed_rounds", 0)
+                if current_rounds >= 1:
+                    # Finishing Round 2
+                    st.session_state.completed_rounds = current_rounds + 1
                     st.session_state.step = 8
+                    
+                    st.session_state.fm_selected_method = None
+                    st.session_state.fm_confirm_submit = False
+                    st.session_state.fm_method_understood = False
+                    st.session_state.fm_framework_understood = False
+                    st.session_state.fm_problem_entries = []
+                    st.session_state.fm_knowledge_entries = []
+                    st.session_state.fm_ideation_entries = []
+                    st.rerun()
                 else:
-                    st.session_state.step = 6
-                
-                # Resets for cleanly revisiting
-                st.session_state.fm_selected_method = None
-                st.session_state.fm_confirm_submit = False
-                st.session_state.fm_method_understood = False
-                st.session_state.fm_framework_understood = False
-                st.session_state.fm_problem_entries = []
-                st.session_state.fm_knowledge_entries = []
-                st.session_state.fm_ideation_entries = []
-                
-                st.rerun()
+                    # Finishing Round 1: Trigger Mid-Experiment Data Export screen
+                    st.session_state.round_1_completed_export = True
+                    st.rerun()
 
     if not st.session_state.fm_confirm_submit:
         components.html(
